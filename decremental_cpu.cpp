@@ -37,24 +37,26 @@ class dyn_graph {
 };
 
 void find_unreachable_down(dyn_graph G, long ns, long *S, long w) {
-    std::queue<long> Q;
+	std::queue<long> Q[2];
 
-    for (long i = 0; i < ns; i++) {
+	for (long i = 0; i < ns; i++) {
 		long v = S[i];
-        if (v != w) {
+		if (v != w) {
 			// if v has no in-edges
 			if (G.in_deg[v] == 0) {
-				Q.push(v);
+				Q[0].push(v);
 			}
 		}
-    }
+	}
 
 	// vector is used instead of set since input graph is DAG
 	std::vector<long> U, I_src, I_dst;
 
-	while (!Q.empty()) {
-		long v = Q.front();
-		Q.pop();
+	// pop from Qa and insert into Qb
+	long a = 0, b = 1;
+	while (!Q[a].empty()) {
+		long v = Q[a].front();
+		Q[a].pop();
 
 		U.push_back(v);
 		for (long i = G.in_row[v]; i < G.in_row[v+1]; i++) {
@@ -68,8 +70,15 @@ void find_unreachable_down(dyn_graph G, long ns, long *S, long w) {
 
 			G.remove_edge(v, x);
 			if (G.in_deg[x] == 0) {
-				Q.push(x);
+				Q[b].push(x);
 			}
+		}
+
+		// swap the queues
+		if (Q[a].empty()) {
+			long temp = a;
+			a = b;
+			b = a;
 		}
 	}
 
