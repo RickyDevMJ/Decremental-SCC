@@ -2,20 +2,26 @@
 #include <unordered_map>
 #include <unordered_set>
 
+// data-structure to store dynamic graph
 class dyn_graph {
 
 	public:
 
+		// number of vertices
 		long n;
+		// csr representation of in-edges and out-edges
 		long *in_row; 
 		long *out_row;
 		long *in_col; 
 		long *out_col;
+		// in degree and out degree for each vertex
 		long *in_deg;
 		long *out_deg;
 
+		// maps vertex in current node to vertex in the base graph
 		std::unordered_map<long, long> vertex_map;
 
+		// function to remove an edge from the graph
 		void remove_edge(long src, long dst) {
 			#pragma omp parallel for
 			for (long i = out_row[src]; i < out_row[src + 1]; i++) {
@@ -38,29 +44,38 @@ class dyn_graph {
 			}
 		}
 
+		// function to remove a node from the graph
 		void remove_node(long v) {
 			// todo
 		}
 };
 
+// data-structure to store a node of the SCC-Tree
 class scc_tree {
 	public:
 
+		// unique identifier for every node
 		long id;
+		// The graph represented by the node, NULL if it is leaf
 		dyn_graph G;
+		// parent pointer of the node in the tree
 		scc_tree *parent;
+		// vector like representation of children of current node
 		long max_children, num_children;
 		scc_tree **children;
 		long size;
+		// this array stores all the vertices of base graph contained in the current node
 		long *vertices;
 };
 
+// simple structure to hold the unreachable vertices and edges; return value of find_unreachable
 struct unreachable
 {
 	std::vector<long> U, I_src, I_dst;
 	std::unordered_set<long> U_set;
 };
 
+// simple function to calaculate depth of a node from root of the tree
 long depth(scc_tree *node)
 {
 	long d = -1;
@@ -72,6 +87,7 @@ long depth(scc_tree *node)
 	return d;
 }
 
+// simple function to find least common ancestor of two nodes in the tree
 scc_tree *LCA(scc_tree *n1, scc_tree *n2)
 {
 	long d1 = depth(n1), d2 = depth(n2);
@@ -101,6 +117,7 @@ scc_tree *LCA(scc_tree *n1, scc_tree *n2)
 	return NULL;
 }
 
+// helper function to recursively lift up the deleted node in the SCC-tree
 void lift_up(scc_tree *T, unreachable &R, scc_tree **t_array) {
 
 	// if node is the root
@@ -150,6 +167,7 @@ void lift_up(scc_tree *T, unreachable &R, scc_tree **t_array) {
 	}
 }
 
+// function to remove an edge from tree and subsequently from the base graph
 void remove_edge(long src, long dst, long n, scc_tree **t_array) {
 	scc_tree *T = LCA(t_array[src], t_array[dst]);
 
@@ -177,6 +195,7 @@ void remove_edge(long src, long dst, long n, scc_tree **t_array) {
 
 }
 
+// function to find the set of vertices not reachable from the source w
 unreachable find_unreachable_down(dyn_graph G, long ns, long *S, long w) {
 	std::queue<long> Q[2];
 
@@ -226,6 +245,7 @@ unreachable find_unreachable_down(dyn_graph G, long ns, long *S, long w) {
 	return R;
 }
 
+// function to find the set of vertices which does not reach the sink w
 unreachable find_unreachable_up(dyn_graph G, long ns, long *S, long w) {
 	std::queue<long> Q[2];
 
