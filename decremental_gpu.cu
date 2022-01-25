@@ -1,5 +1,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <thrust/set_operations.h>
+#include <thrust/execution_policy.h>
 
 // todo : implement dyn_graph data-structure to represent graphs
 
@@ -24,7 +26,8 @@ public:
 // simple structure to hold the unreachable vertices and edges; return value of find_unreachable
 struct unreachable
 {
-	thrust::device_vector<long> U, I_src, I_dst;
+	thrust::device_vector<long> U;
+	thrust::device_vector<std::pair<long, long>> I;
 };
 
 // simple function to calaculate depth of a node from root of the tree
@@ -128,16 +131,20 @@ void remove_edge(long src, long dst, long n, scc_tree **t_array) {
 	long S[2];
 	S[0] = T->G.vertex_map[src];
 	S[1] = T->G.vertex_map[dst];
-	unreachable R = find_unreachable_down(T->G, 2, S, T->G.vertex_map[T->id]);
-	unreachable R1 = find_unreachable_up(T->G, 2, S, T->G.vertex_map[T->id]);
+	unreachable R1 = find_unreachable_down(T->G, 2, S, T->G.vertex_map[T->id]);
+	unreachable R2 = find_unreachable_up(T->G, 2, S, T->G.vertex_map[T->id]);
 
-	for (long i = 0; i < R1.U.size(); i++) {
-		if (R.U_set.find(R1.U[i]) == R.U_set.end()) {
-			R.U.push_back(R1.U[i]);
-			// todo : update R.I_src and R.I_dst
-			R.U_set.insert(R1.U[i]);	
-		}
-	}
+	unreachable R;
+	thrust::device_vector<long> U(R1.U.size() + R2.U.size());
+	thrust::device_vector<std::pair<long, long>> I(R1.I.size() + R2.I.size());
+	thrust::sort(thrust::device, R1.U.begin(), R1.U.end());
+	thrust::sort(thrust::device, R2.U.begin(), R2.U.end());
+	thrust::set_union(thrust::device, R1.U.begin(), R1.U.end(), R2.U.begin(), R2.U.end(), U.begin());
+	thrust::sort(thrust::device, R1.I.begin(), R1.I.end());
+	thrust::sort(thrust::device, R2.I.begin(), R2.I.end());
+	thrust::set_union(thrust::device, R1.I.begin(), R1.I.end(), R2.I.begin(), R2.I.end(), I.begin());
+	R.U = U;
+	R.I = I;
 
 	lift_up(T, R, t_array);
 }
@@ -161,13 +168,12 @@ unreachable find_unreachable_down(dyn_graph G, long ns, long *S, long w) {
 	// pop from Qa and insert into Qb
 	long a = 0, b = 1;
 	while (!Q[a].empty()) {
-		long v = Q[a][0]];
+		long v = Q[a][0];
 		Q[a].erase(Q[a].begin());
 
 		R.U.push_back(v);
-		for (long i = G.in_row[v]; i < G.in_row[v+1]; i++) {
-			R.I_src.push_back(G.in_col[i]);
-			R.I_dst.push_back(v);
+		for (long i = G.out_row[v]; i < G.out_row[v+1]; i++) {
+			R.I.push_back(v, G.out_col[i]));
 		}
 
 		long row_start = G.out_row[v], row_end = G.out_row[v+1];
@@ -210,13 +216,12 @@ unreachable find_unreachable_up(dyn_graph G, long ns, long *S, long w) {
 	// pop from Qa and insert into Qb
 	long a = 0, b = 1;
 	while (!Q[a].empty()) {
-		long v = Q[a][0]];
+		long v = Q[a][0];
 		Q[a].erase(Q[a].begin());
 
 		R.U.push_back(v);
 		for (long i = G.in_row[v]; i < G.in_row[v+1]; i++) {
-			R.I_src.push_back(G.out_col[i]);
-			R.I_dst.push_back(v);
+			R.I.push_back(std::make_pair(G.in_col[i], v));
 		}
 
 		for (long i = G.in_row[v]; i < G.in_row[v+1]; i++) {
