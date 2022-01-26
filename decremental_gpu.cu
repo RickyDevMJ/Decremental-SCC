@@ -13,6 +13,8 @@ public:
     long id;
     // The graph represented by the node, NULL if it is leaf
     dyn_graph G;
+	// The graph represented by the node, NULL if it is leaf
+    dyn_graph d_G;
     // parent pointer of the node in the tree
     scc_tree *parent;
     // vector like representation of children of current node
@@ -88,10 +90,10 @@ __global__ void lift_up_kernel(scc_tree *T, unreachable &R) {
 				T->children[tid] = NULL;
 				atomicSub(&T->num_children, 1);
 
-				// todo : modify T.G
+				// todo : modify T.G and T.d_G
 
 				if (T->parent != NULL)
-					// todo : modify T->parent and T->parent.G
+					// todo : modify T->parent and T->parent.G and T->parent.d_G
 
 				break;
 			}
@@ -106,11 +108,13 @@ void lift_up(scc_tree *T, unreachable &R, scc_tree **t_array) {
 	cudaMalloc((void **)&d_R, sizeof(unreachable));
 	cudaMemcpy(d_R, &R, sizeof(unreachable), cudaMemcpyHostToDevice);
 
-	long nthreads = BLOCK_SIZE;
-	long nblocks = (T->max_children - 1) / nthreads + 1;
+	int max_children;
+	cudaMemcpy(&max_children, &T->max_children, sizeof(int), cudaMemcpyDeviceToHost);
 
-	// todo: transfer tree T to device (d_T)
-	lift_up_kernel<<< nthreads, nblocks >>>(d_T, d_R);
+	long nthreads = BLOCK_SIZE;
+	long nblocks = (max_children - 1) / nthreads + 1;
+
+	lift_up_kernel<<< nthreads, nblocks >>>(T, d_R);
 
 	// if node is not the root
 	if (T->parent != NULL) {
